@@ -1,0 +1,57 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import getDb from '../../data/db.js';
+
+const { state } = Astro.params;
+const cleanState = (state || '').toLowerCase().trim();
+
+let cities = [];
+const db = getDb(Astro.locals.runtime);
+
+try {
+  const res = await db.prepare(`
+    SELECT DISTINCT city 
+    FROM permutations 
+    WHERE state = ? 
+    ORDER BY city ASC
+  `).bind(cleanState).all();
+  cities = (res.results || []).map(r => r.city);
+} catch (e) {
+  console.error("Directory cities query error:", e);
+}
+
+// Format name helper
+const formatName = (str: string) => {
+  if (!str) return '';
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+---
+
+<Layout title={`${cleanState.toUpperCase()} Cities Directory | Legal Salary Guide`}>
+  <div class="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+    <nav class="flex text-sm text-slate-400 mb-6">
+      <a href="/" class="hover:text-white transition-colors">Home</a>
+      <span class="mx-2">/</span>
+      <a href="/directory" class="hover:text-white transition-colors">Directory</a>
+      <span class="mx-2">/</span>
+      <span class="text-indigo-400 font-medium">{cleanState.toUpperCase()}</span>
+    </nav>
+
+    <h1 class="text-3xl font-extrabold text-white mb-2">{cleanState.toUpperCase()} Cities</h1>
+    <p class="text-slate-400 text-sm mb-8">Select a city in {cleanState.toUpperCase()} to explore occupation salaries and living wages.</p>
+    
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      {cities.map(city => (
+        <a 
+          href={`/directory/${cleanState}/${city}`}
+          class="bg-slate-900/60 hover:bg-slate-900 border border-slate-805 hover:border-indigo-500/50 p-4 rounded-xl text-white hover:text-indigo-300 font-semibold transition-all shadow-md"
+        >
+          {formatName(city)}
+        </a>
+      ))}
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,369 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import getDb from '../../../data/db.js';
+
+const { state, city, jobTitle } = Astro.params;
+
+// Format params for querying
+const cleanState = (state || '').toLowerCase().trim();
+const cleanCity = (city || '').toLowerCase().trim();
+const cleanJob = (jobTitle || '').toLowerCase().trim();
+
+// Retrieve from database
+let record = null;
+let dbError = null;
+
+const db = getDb(Astro.locals.runtime);
+
+try {
+  record = await db.prepare(`
+    SELECT * FROM permutations 
+    WHERE state = ? AND city = ? AND job_title = ?
+  `).bind(cleanState, cleanCity, cleanJob).first();
+} catch (e) {
+  console.error("Database query error:", e);
+  dbError = e.message;
+}
+
+// Format display names
+const formatName = (str: string) => {
+  if (!str) return '';
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const displayCity = formatName(cleanCity);
+const displayState = cleanState.toUpperCase();
+const displayJob = formatName(cleanJob);
+
+// Calculations / format numbers
+const salaryVal = record ? record.median_salary : 0;
+const rentMonthlyVal = record ? record.median_rent : 0;
+const rentAnnualVal = rentMonthlyVal * 12;
+const taxRateVal = record ? record.tax_rate : 0.05;
+const taxesVal = salaryVal * taxRateVal;
+const disposableVal = record ? record.disposable_income : 0;
+
+const formatCurrency = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  }).format(val);
+};
+
+const formatPercent = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    maximumFractionDigits: 1
+  }).format(val);
+};
+
+// Verdict calculation
+let verdict = "Unknown";
+let verdictColor = "from-slate-500 to-slate-700";
+let verdictText = "Not enough data.";
+let verdictIcon = "fa-question-circle";
+
+if (record) {
+  const ratio = disposableVal / salaryVal;
+  if (disposableVal < 0) {
+    verdict = "Deficit Risk";
+    verdictColor = "from-rose-500 to-red-700 shadow-rose-500/20";
+    verdictText = "Living expenses and taxes exceed median income. Consider roommate sharing or alternative locations.";
+    verdictIcon = "fa-triangle-exclamation";
+  } else if (ratio < 0.15) {
+    verdict = "Tight Budget";
+    verdictColor = "from-amber-500 to-orange-600 shadow-amber-500/20";
+    verdictText = "Discretionary savings are under 15%. Careful budgeting or supplemental income may be required.";
+    verdictIcon = "fa-scale-unbalanced";
+  } else if (ratio < 0.35) {
+    verdict = "Comfortable";
+    verdictColor = "from-emerald-500 to-teal-600 shadow-emerald-500/20";
+    verdictText = "Healthy disposable income margin. Suitable for standard living expenses and regular savings.";
+    verdictIcon = "fa-circle-check";
+  } else {
+    verdict = "Highly Feasible";
+    verdictColor = "from-indigo-500 to-violet-600 shadow-indigo-500/20";
+    verdictText = "Excellent disposable income margin (above 35%). Outstanding potential for building wealth.";
+    verdictIcon = "fa-star";
+  }
+}
+
+// Breadcrumb Schema
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": "https://legalsalaryguide.com"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": displayState,
+      "item": `https://legalsalaryguide.com/directory/${cleanState}`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": displayCity,
+      "item": `https://legalsalaryguide.com/directory/${cleanState}/${cleanCity}`
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": displayJob,
+      "item": `https://legalsalaryguide.com/${cleanState}/${cleanCity}/${cleanJob}`
+    }
+  ]
+};
+
+// FAQ Schema
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": `Is being a ${displayJob} in ${displayCity}, ${displayState} worth it?`,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": `Yes, based on our matrix, the median salary is ${formatCurrency(salaryVal)} while living expenses (annual rent) are ${formatCurrency(rentAnnualVal)} and estimated state taxes are ${formatCurrency(taxesVal)}. This leaves a net disposable income of ${formatCurrency(disposableVal)} (${verdict}).`
+      }
+    },
+    {
+      "@type": "Question",
+      "name": `What is the average salary of a ${displayJob} in ${displayCity}, ${displayState}?`,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": `The median annual salary for a ${displayJob} in ${displayCity}, ${displayState} is ${formatCurrency(salaryVal)} according to official labor statistics.`
+      }
+    },
+    {
+      "@type": "Question",
+      "name": `What is the median rent in ${displayCity}, ${displayState}?`,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": `The median rent in ${displayCity}, ${displayState} is approximately ${formatCurrency(rentMonthlyVal)} per month (or ${formatCurrency(rentAnnualVal)} annually) according to local rental indices.`
+      }
+    }
+  ]
+};
+---
+
+<Layout 
+  title={record ? `Is being a ${displayJob} in ${displayCity}, ${displayState} worth it?` : "Combination Not Found | Legal Salary Guide"}
+  description={record ? `Analysis of salary, housing costs, taxes, and disposable income for a ${displayJob} in ${displayCity}, ${displayState}.` : ""}
+>
+  {record && (
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  )}
+  <div class="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Breadcrumb -->
+    <nav class="flex text-sm text-slate-400 mb-6">
+      <a href="/" class="hover:text-white transition-colors">Home</a>
+      <span class="mx-2">/</span>
+      <span class="text-slate-500">{displayState}</span>
+      <span class="mx-2">/</span>
+      <span class="text-slate-500">{displayCity}</span>
+      <span class="mx-2">/</span>
+      <span class="text-indigo-400 font-medium">{displayJob}</span>
+    </nav>
+
+    {record ? (
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Left Side: Title & Narrative Card -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-slate-900/60 backdrop-blur-md rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl"></div>
+            
+            <span class="text-indigo-400 font-semibold tracking-wider uppercase text-xs">Cost of Living vs Salary Matrix</span>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white mt-2 leading-tight">
+              Is being a <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-violet-400 font-black">{displayJob}</span> in <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-300 to-fuchsia-400 font-black">{displayCity}</span> worth it?
+            </h1>
+            
+            <p class="text-slate-300 mt-6 leading-relaxed text-base sm:text-lg">
+              The average <strong class="text-white font-medium">{displayJob}</strong> in <strong class="text-white font-medium">{displayCity}, {displayState}</strong> makes <strong class="text-indigo-300 font-semibold">{formatCurrency(salaryVal)}</strong> per year. 
+              After paying roughly <strong class="text-rose-400 font-semibold">{formatCurrency(rentMonthlyVal)}/month</strong> in local housing rent (totaling <strong class="text-rose-400/90 font-medium">{formatCurrency(rentAnnualVal)}/year</strong>) and state income taxes (<strong class="text-amber-400 font-medium">{formatPercent(taxRateVal)}</strong> rate, totaling <strong class="text-amber-400 font-medium">{formatCurrency(taxesVal)}</strong>), 
+              you are left with a disposable income of <strong class="text-emerald-400 font-bold">{formatCurrency(disposableVal)}</strong>.
+            </p>
+          </div>
+
+          <!-- Statistics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <!-- Salary Card -->
+            <div class="bg-slate-900/40 p-5 rounded-xl border border-slate-800/80 hover:border-slate-700/80 transition-colors flex flex-col justify-between">
+              <span class="text-slate-400 text-xs font-medium">Gross Annual Salary</span>
+              <div>
+                <div class="text-xl font-bold text-white mt-2">{formatCurrency(salaryVal)}</div>
+                <div class="text-[10px] text-slate-500 mt-1">BLS Median Wage</div>
+              </div>
+            </div>
+
+            <!-- Rent Card -->
+            <div class="bg-slate-900/40 p-5 rounded-xl border border-slate-800/80 hover:border-slate-700/80 transition-colors flex flex-col justify-between">
+              <span class="text-slate-400 text-xs font-medium">Median Monthly Rent</span>
+              <div>
+                <div class="text-xl font-bold text-rose-400 mt-2">{formatCurrency(rentMonthlyVal)}</div>
+                <div class="text-[10px] text-slate-500 mt-1">Zillow Rent Index</div>
+              </div>
+            </div>
+
+            <!-- Tax Card -->
+            <div class="bg-slate-900/40 p-5 rounded-xl border border-slate-800/80 hover:border-slate-700/80 transition-colors flex flex-col justify-between">
+              <span class="text-slate-400 text-xs font-medium">Est. State Tax Rate</span>
+              <div>
+                <div class="text-xl font-bold text-amber-400 mt-2">{formatPercent(taxRateVal)}</div>
+                <div class="text-[10px] text-slate-500 mt-1">State Lookup Table</div>
+              </div>
+            </div>
+
+            <!-- Disposable Income Card -->
+            <div class="bg-slate-900/40 p-5 rounded-xl border border-slate-800/80 hover:border-slate-700/80 transition-colors flex flex-col justify-between">
+              <span class="text-slate-400 text-xs font-medium">Disposable Income</span>
+              <div>
+                <div class="text-xl font-bold text-emerald-400 mt-2">{formatCurrency(disposableVal)}</div>
+                <div class="text-[10px] text-slate-500 mt-1">Net Savings Potential</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Verdict Badge Card -->
+          <div class={`bg-gradient-to-r ${verdictColor} p-6 rounded-2xl text-white shadow-lg`}>
+            <div class="flex items-start space-x-4">
+              <div class="bg-white/10 p-3 rounded-lg mt-0.5">
+                <i class={`fa-solid ${verdictIcon} text-xl`}></i>
+              </div>
+              <div>
+                <span class="text-white/80 text-xs font-semibold uppercase tracking-wider">Living Wage Verdict</span>
+                <h3 class="text-lg sm:text-xl font-bold mt-0.5">{verdict}</h3>
+                <p class="text-white/90 text-sm mt-1.5 leading-relaxed">{verdictText}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Visualization Card -->
+        <div class="space-y-6">
+          <!-- Chart.js Breakdown -->
+          <div class="bg-slate-900/60 backdrop-blur-md rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between h-full min-h-[350px]">
+            <div>
+              <h3 class="text-white font-bold text-lg">Financial Breakdown</h3>
+              <p class="text-slate-400 text-xs mt-1">Where your median salary goes each year</p>
+            </div>
+            
+            <div class="relative w-full max-w-[240px] mx-auto my-6 aspect-square flex items-center justify-center">
+              <canvas id="wageChart"></canvas>
+            </div>
+
+            <!-- Custom Legend -->
+            <div class="grid grid-cols-3 gap-2 text-center text-xs mt-4">
+              <div class="p-2 rounded-lg bg-slate-950/40 border border-slate-800">
+                <div class="w-2.5 h-2.5 rounded-full bg-rose-500 mx-auto mb-1"></div>
+                <span class="text-slate-400">Rent</span>
+                <div class="font-semibold text-white mt-0.5">{formatCurrency(rentAnnualVal)}</div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-950/40 border border-slate-800">
+                <div class="w-2.5 h-2.5 rounded-full bg-amber-500 mx-auto mb-1"></div>
+                <span class="text-slate-400">Taxes</span>
+                <div class="font-semibold text-white mt-0.5">{formatCurrency(taxesVal)}</div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-950/40 border border-slate-800">
+                <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 mx-auto mb-1"></div>
+                <span class="text-slate-400">Net</span>
+                <div class="font-semibold text-white mt-0.5">{formatCurrency(disposableVal)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class="bg-slate-900/60 backdrop-blur-md rounded-2xl p-8 border border-slate-800 text-center shadow-xl space-y-6 max-w-2xl mx-auto my-12">
+        <div class="w-16 h-16 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
+          <i class="fa-solid fa-face-frown text-2xl"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-white">Combination Not Found</h2>
+          <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+            We currently don't have calculations indexed for a <strong class="text-white font-medium">{displayJob || 'this job'}</strong> in <strong class="text-white font-medium">{displayCity || 'this city'}</strong>.
+            This could be due to a missing Zillow rent report or a blank BLS occupation salary for this location.
+          </p>
+        </div>
+        <div class="pt-4">
+          <a href="/" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/30">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Return to Search</span>
+          </a>
+        </div>
+      </div>
+    )}
+  </div>
+
+  {record && (
+    <script is:inline src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script is:inline define:vars={{ rentAnnualVal, taxesVal, disposableVal }}>
+      document.addEventListener('DOMContentLoaded', () => {
+        const canvas = document.getElementById('wageChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        
+        // Handle negative disposable income (chart rendering safety)
+        const displayDisposable = disposableVal > 0 ? disposableVal : 0;
+        
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Annual Rent', 'State Taxes', 'Disposable Income'],
+            datasets: [{
+              data: [rentAnnualVal, taxesVal, displayDisposable],
+              backgroundColor: ['#f43f5e', '#f59e0b', '#10b981'],
+              hoverOffset: 4,
+              borderWidth: 0,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                titleColor: '#ffffff',
+                bodyColor: '#cbd5e1',
+                borderColor: '#334155',
+                borderWidth: 1,
+                padding: 10,
+                boxWidth: 8,
+                boxPadding: 4,
+                callbacks: {
+                  label: function(context) {
+                    let label = context.label || '';
+                    if (label) {
+                      label += ': ';
+                    }
+                    if (context.parsed !== null) {
+                      label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(context.parsed);
+                    }
+                    return label;
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+    </script>
+  )}
+</Layout>

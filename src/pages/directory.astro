@@ -1,0 +1,32 @@
+---
+import Layout from '../layouts/Layout.astro';
+import getDb from '../data/db.js';
+
+const db = getDb(Astro.locals.runtime);
+
+let states = [];
+try {
+  const res = await db.prepare('SELECT DISTINCT state FROM permutations ORDER BY state ASC').all();
+  states = (res.results || []).map(r => r.state.toUpperCase());
+} catch (e) {
+  console.error("Directory states query error:", e);
+}
+---
+
+<Layout title="US States Directory | Legal Salary Guide">
+  <div class="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-extrabold text-white mb-2">US Career & Cost of Living Directory</h1>
+    <p class="text-slate-400 text-sm mb-8">Browse salaries, rent costs, and disposable incomes by state and city.</p>
+    
+    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+      {states.map(state => (
+        <a 
+          href={`/directory/${state.toLowerCase()}`}
+          class="bg-slate-900/60 hover:bg-slate-900 border border-slate-805 hover:border-indigo-500/50 p-4 rounded-xl text-center text-white hover:text-indigo-300 font-bold transition-all shadow-md"
+        >
+          {state}
+        </a>
+      ))}
+    </div>
+  </div>
+</Layout>

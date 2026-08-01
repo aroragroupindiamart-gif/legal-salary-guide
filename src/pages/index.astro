@@ -1,0 +1,337 @@
+---
+import Layout from '../layouts/Layout.astro';
+import getDb from '../data/db.js';
+
+const db = getDb(Astro.locals.runtime);
+
+// Query lists of jobs and locations for autocomplete
+let jobs = [];
+let locations = [];
+let popularComparisons = [];
+let dbError = null;
+
+try {
+  // Get top 300 jobs by employment volume for autocomplete
+  const jobsRes = await db.prepare('SELECT job_title, median_salary FROM jobs ORDER BY tot_emp DESC LIMIT 300').all();
+  jobs = jobsRes.results || [];
+  
+  // Get top 300 cities by size rank
+  const locationsRes = await db.prepare('SELECT city, state, median_rent FROM locations ORDER BY size_rank ASC LIMIT 300').all();
+  locations = locationsRes.results || [];
+  
+  // Query 6 popular valid permutations to display as quick links
+  const popularRes = await db.prepare(`
+    SELECT state, city, job_title, median_salary, median_rent, disposable_income
+    FROM permutations 
+    ORDER BY median_salary DESC
+    LIMIT 6
+  `).all();
+  popularComparisons = popularRes.results || [];
+} catch (e) {
+  console.error("Homepage DB Query Error:", e);
+  dbError = e.message;
+}
+
+// Helper to format display names
+const formatName = (str: string) => {
+  if (!str) return '';
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const formatCurrency = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  }).format(val);
+};
+---
+
+<Layout title="Legal Salary Guide | Salary vs Cost of Living Matrix">
+  <!-- Hero Section -->
+  <section class="relative pt-16 pb-12 sm:pt-20 sm:pb-16 text-center">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold tracking-wide uppercase">
+        <i class="fa-solid fa-bolt"></i>
+        <span>Server-Side Rendered SQLite Engine</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-tight">
+        Is Your Career Choice Worth It <br/>
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400">
+          In Your Target City?
+        </span>
+      </h1>
+      <p class="text-slate-400 text-base sm:text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+        Analyze living costs, average state taxes, and job salaries across <strong>1,000,000+ dynamic calculations</strong> to find your true disposable income.
+      </p>
+    </div>
+  </section>
+
+  <!-- Interactive Search / Matrix Card -->
+  <section class="max-w-3xl mx-auto px-4 pb-12 sm:pb-16 relative z-30">
+    <div class="bg-slate-900/80 backdrop-blur-lg rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl relative">
+      <!-- Decorative Glow -->
+      <div class="absolute -top-12 -left-12 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl"></div>
+      
+      <h2 class="text-lg font-bold text-white mb-6 flex items-center space-x-2">
+        <i class="fa-solid fa-magnifying-glass text-indigo-400 text-sm"></i>
+        <span>Select Job & Location Matrix</span>
+      </h2>
+
+      <form id="searchForm" class="space-y-4 sm:space-y-0 sm:flex sm:items-stretch sm:space-x-4">
+        <!-- Job Search Autocomplete -->
+        <div class="flex-1 relative">
+          <label for="jobSearch" class="block text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">1. Select Occupation</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <i class="fa-solid fa-briefcase"></i>
+            </div>
+            <input 
+              type="text" 
+              id="jobSearch" 
+              placeholder="e.g., Software Developer..." 
+              autocomplete="off"
+              class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white rounded-xl pl-10 pr-4 py-3 text-sm transition-all placeholder:text-slate-600 outline-none"
+            />
+          </div>
+          <!-- Autocomplete Dropdown -->
+          <div id="jobDropdown" class="hidden absolute left-0 right-0 mt-2 max-h-60 overflow-y-auto rounded-xl bg-slate-950 border border-slate-800 shadow-2xl z-50 text-sm"></div>
+        </div>
+
+        <!-- City Search Autocomplete -->
+        <div class="flex-1 relative">
+          <label for="citySearch" class="block text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">2. Select City</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <i class="fa-solid fa-location-dot"></i>
+            </div>
+            <input 
+              type="text" 
+              id="citySearch" 
+              placeholder="e.g., Austin, TX..." 
+              autocomplete="off"
+              class="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white rounded-xl pl-10 pr-4 py-3 text-sm transition-all placeholder:text-slate-600 outline-none"
+            />
+          </div>
+          <!-- Autocomplete Dropdown -->
+          <div id="cityDropdown" class="hidden absolute left-0 right-0 mt-2 max-h-60 overflow-y-auto rounded-xl bg-slate-950 border border-slate-800 shadow-2xl z-50 text-sm"></div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="flex items-end">
+          <button 
+            type="submit"
+            class="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 active:from-indigo-700 active:to-violet-800 text-white font-semibold rounded-xl px-6 py-3.5 text-sm transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/35 cursor-pointer flex items-center justify-center space-x-2"
+          >
+            <span>Analyze</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Popular Comparisons Section -->
+  <section class="max-w-6xl mx-auto px-4 pb-20 relative z-20">
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-bold text-white">Popular Matrix Comparisons</h2>
+          <p class="text-slate-500 text-sm mt-1">High-volume occupational pathways processed by our engine</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {popularComparisons.map(item => {
+          const formattedCity = formatName(item.city);
+          const formattedJob = formatName(item.job_title);
+          const path = `/${item.state}/${item.city}/${item.job_title}`;
+          const isNegative = item.disposable_income < 0;
+          
+          return (
+            <a href={path} class="group bg-slate-900/40 hover:bg-slate-900/80 border border-slate-850 hover:border-slate-750 rounded-2xl p-5 transition-all flex flex-col justify-between hover:-translate-y-0.5 shadow-md">
+              <div>
+                <div class="flex items-center justify-between text-xs text-slate-500">
+                  <span class="font-semibold uppercase tracking-wider">{item.state.toUpperCase()}</span>
+                  <span class="group-hover:text-indigo-400 transition-colors flex items-center space-x-1">
+                    <span>View Analysis</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] transform group-hover:translate-x-0.5 transition-transform"></i>
+                  </span>
+                </div>
+                <h3 class="text-white font-bold text-base mt-2 line-clamp-1 group-hover:text-indigo-300 transition-colors">
+                  {formattedJob}
+                </h3>
+                <p class="text-slate-400 text-xs mt-1">in {formattedCity}</p>
+              </div>
+
+              <div class="mt-5 pt-4 border-t border-slate-900/60 grid grid-cols-3 gap-2 text-center text-[10px] text-slate-500">
+                <div>
+                  <span>Median Salary</span>
+                  <div class="font-bold text-white text-xs mt-0.5">{formatCurrency(item.median_salary)}</div>
+                </div>
+                <div>
+                  <span>Monthly Rent</span>
+                  <div class="font-bold text-rose-400 text-xs mt-0.5">{formatCurrency(item.median_rent)}</div>
+                </div>
+                <div>
+                  <span>Disposable</span>
+                  <div class={`font-extrabold text-xs mt-0.5 ${isNegative ? 'text-rose-500' : 'text-emerald-400'}`}>
+                    {formatCurrency(item.disposable_income)}
+                  </div>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <!-- Client-side Autocomplete JavaScript -->
+  <script is:inline define:vars={{ jobs, locations }}>
+    document.addEventListener('DOMContentLoaded', () => {
+      const jobSearch = document.getElementById('jobSearch');
+      const jobDropdown = document.getElementById('jobDropdown');
+      const citySearch = document.getElementById('citySearch');
+      const cityDropdown = document.getElementById('cityDropdown');
+      const searchForm = document.getElementById('searchForm');
+
+      // State selections
+      let selectedJob = null;
+      let selectedCity = null;
+
+      // Clean format helper
+      const toSlug = (text) => {
+        return text.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      };
+
+      // Format display names
+      const formatName = (str) => {
+        return str
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      };
+
+      // Job Autocomplete Setup
+      jobSearch.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+          jobDropdown.classList.add('hidden');
+          return;
+        }
+
+        const filtered = jobs.filter(j => j.job_title.toLowerCase().includes(query)).slice(0, 10);
+        
+        if (filtered.length === 0) {
+          jobDropdown.innerHTML = `<div class="p-3 text-slate-600 italic">No occupations found</div>`;
+        } else {
+          jobDropdown.innerHTML = filtered.map(j => {
+            const displayName = formatName(j.job_title);
+            return `
+              <div 
+                data-slug="${j.job_title}"
+                data-name="${displayName}"
+                class="job-item p-3 hover:bg-slate-900 cursor-pointer border-b border-slate-900/60 text-slate-300 hover:text-white flex items-center justify-between transition-colors"
+              >
+                <span>${displayName}</span>
+                <span class="text-xs text-slate-500">Avg: $${Math.round(j.median_salary / 1000)}k</span>
+              </div>
+            `;
+          }).join('');
+        }
+        jobDropdown.classList.remove('hidden');
+      });
+
+      // City Autocomplete Setup
+      citySearch.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+          cityDropdown.classList.add('hidden');
+          return;
+        }
+
+        const filtered = locations.filter(l => 
+          l.city.toLowerCase().includes(query) || 
+          l.state.toLowerCase().includes(query)
+        ).slice(0, 10);
+        
+        if (filtered.length === 0) {
+          cityDropdown.innerHTML = `<div class="p-3 text-slate-600 italic">No cities found</div>`;
+        } else {
+          cityDropdown.innerHTML = filtered.map(l => {
+            const displayCityName = formatName(l.city);
+            return `
+              <div 
+                data-city-slug="${l.city}"
+                data-state-slug="${l.state}"
+                data-name="${displayCityName}, ${l.state.toUpperCase()}"
+                class="city-item p-3 hover:bg-slate-900 cursor-pointer border-b border-slate-900/60 text-slate-300 hover:text-white flex items-center justify-between transition-colors"
+              >
+                <span>${displayCityName}, ${l.state.toUpperCase()}</span>
+                <span class="text-xs text-slate-500">Rent: $${Math.round(l.median_rent)}/mo</span>
+              </div>
+            `;
+          }).join('');
+        }
+        cityDropdown.classList.remove('hidden');
+      });
+
+      // Item selection clicks
+      jobDropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.job-item');
+        if (item) {
+          selectedJob = item.dataset.slug;
+          jobSearch.value = item.dataset.name;
+          jobDropdown.classList.add('hidden');
+        }
+      });
+
+      cityDropdown.addEventListener('click', (e) => {
+        const item = e.target.closest('.city-item');
+        if (item) {
+          selectedCity = {
+            city: item.dataset.citySlug,
+            state: item.dataset.stateSlug
+          };
+          citySearch.value = item.dataset.name;
+          cityDropdown.classList.add('hidden');
+        }
+      });
+
+      // Hide dropdowns when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!jobSearch.contains(e.target) && !jobDropdown.contains(e.target)) {
+          jobDropdown.classList.add('hidden');
+        }
+        if (!citySearch.contains(e.target) && !cityDropdown.contains(e.target)) {
+          cityDropdown.classList.add('hidden');
+        }
+      });
+
+      // Form Submission
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        let jobSlug = selectedJob || toSlug(jobSearch.value);
+        let citySlug = selectedCity ? selectedCity.city : toSlug(citySearch.value.split(',')[0]);
+        let stateSlug = selectedCity ? selectedCity.state : '';
+        
+        if (!stateSlug && citySearch.value.includes(',')) {
+          stateSlug = citySearch.value.split(',')[1].trim().toLowerCase();
+        }
+
+        if (!jobSlug || !citySlug || !stateSlug) {
+          alert('Please select both a valid occupation and a city from the list.');
+          return;
+        }
+
+        // Navigate to dynamic page
+        window.location.href = `/${stateSlug.toLowerCase().trim()}/${citySlug}/${jobSlug}`;
+      });
+    });
+  </script>
+</Layout>
