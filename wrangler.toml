@@ -1,0 +1,7 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "legal-salary-guide"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "legal-salary-guide-db"
+database_id = "dd82bdca-8c95-4cde-8cdd-d82ff964ad6b"
