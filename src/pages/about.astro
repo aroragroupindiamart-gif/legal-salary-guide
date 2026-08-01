@@ -1,0 +1,62 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="About Us | Legal Salary Guide" description="Learn about the methodology, data sources, and formula used to calculate true disposable income and evaluate cost of living suitability in the Legal Salary Guide.">
+  <div class="max-w-4xl mx-auto px-4 py-16 sm:px-6 lg:px-8 space-y-12">
+    <!-- Header Block -->
+    <div class="text-center space-y-4">
+      <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+        About <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400">Legal Salary Guide</span>
+      </h1>
+      <p class="text-slate-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
+        Empowering professionals to make informed career and relocation decisions based on true net disposable income.
+      </p>
+    </div>
+
+    <!-- Main Content Info Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8">
+      <div class="bg-slate-900/50 backdrop-blur-sm border border-slate-900 rounded-2xl p-6 hover:border-slate-800 transition-all duration-300 space-y-3">
+        <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xl">
+          <i class="fa-solid fa-map-location-dot"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">Why Cost of Living Matters</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          A high salary in an expensive city often leaves you with less savings than a lower salary in a more affordable region. By indexing housing rent and state income taxes, we show your true net earnings.
+        </p>
+      </div>
+
+      <div class="bg-slate-900/50 backdrop-blur-sm border border-slate-900 rounded-2xl p-6 hover:border-slate-800 transition-all duration-300 space-y-3">
+        <div class="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 text-xl">
+          <i class="fa-solid fa-calculator"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">Calculated Feasibility</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">
+          We categorize each salary/housing permutation into feasibility tiers (Highly Feasible, Comfortable, Tight Budget, or Deficit Risk) depending on the percentage of gross income left after housing and tax expenses.
+        </p>
+      </div>
+    </div>
+
+    <!-- Methodology & Data Source -->
+    <div class="bg-slate-900/40 backdrop-blur-sm border border-slate-900 rounded-2xl p-8 space-y-6">
+      <h2 class="text-2xl font-bold text-white flex items-center space-x-3">
+        <i class="fa-solid fa-gears text-indigo-400 text-lg"></i>
+        <span>Methodology & Formula</span>
+      </h2>
+      <p class="text-slate-300 leading-relaxed text-sm">
+        To compute your estimated annual savings and disposable income, we process raw demographic indicators using a strict mathematical framework:
+      </p>
+      <div class="bg-slate-950/70 rounded-xl p-4 border border-slate-900 font-mono text-xs sm:text-sm text-indigo-300 leading-normal text-center select-all">
+        Disposable Income = Median Salary - (Monthly Rent &times; 12) - State Income Tax
+      </div>
+      <div class="space-y-4 pt-4 border-t border-slate-900 text-xs sm:text-sm text-slate-400">
+        <h4 class="text-white font-bold">Primary Data Sources:</h4>
+        <ul class="list-disc pl-5 space-y-2">
+          <li><strong>Salary Metrics:</strong> Bureau of Labor Statistics (BLS) Occupational Employment and Wage Statistics.</li>
+          <li><strong>Housing & Rental Costs:</strong> Zillow City Rent Index (ZORI), compiling median rental market figures across metropolitan markets.</li>
+          <li><strong>Tax Computations:</strong> Normalized progressive state income tax brackets computed dynamically based on localized state tax directories.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</Layout>
