@@ -11,6 +11,9 @@ export default defineConfig({
   adapter: cloudflare(),
 
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    ssr: {
+      external: ['better-sqlite3']
+    }
   }
 });
