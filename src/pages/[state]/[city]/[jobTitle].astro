@@ -25,6 +25,10 @@ try {
   dbError = e.message;
 }
 
+if (!record) {
+  Astro.response.status = 404;
+}
+
 // Format display names
 const formatName = (str: string) => {
   if (!str) return '';

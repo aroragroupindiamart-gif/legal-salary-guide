@@ -28,9 +28,14 @@ const formatName = (str: string) => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 };
+
+const hasCities = cities.length > 0;
+if (!hasCities) {
+  Astro.response.status = 404;
+}
 ---
 
-<Layout title={`${cleanState.toUpperCase()} Cities Directory | Legal Salary Guide`}>
+<Layout title={hasCities ? `${cleanState.toUpperCase()} Cities Directory | Legal Salary Guide` : "State Not Found | Legal Salary Guide"}>
   <div class="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
     <nav class="flex text-sm text-slate-400 mb-6">
       <a href="/" class="hover:text-white transition-colors">Home</a>
@@ -40,18 +45,40 @@ const formatName = (str: string) => {
       <span class="text-indigo-400 font-medium">{cleanState.toUpperCase()}</span>
     </nav>
 
-    <h1 class="text-3xl font-extrabold text-white mb-2">{cleanState.toUpperCase()} Cities</h1>
-    <p class="text-slate-400 text-sm mb-8">Select a city in {cleanState.toUpperCase()} to explore occupation salaries and living wages.</p>
-    
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-      {cities.map(city => (
-        <a 
-          href={`/directory/${cleanState}/${city}`}
-          class="bg-slate-900/60 hover:bg-slate-900 border border-slate-805 hover:border-indigo-500/50 p-4 rounded-xl text-white hover:text-indigo-300 font-semibold transition-all shadow-md"
-        >
-          {formatName(city)}
-        </a>
-      ))}
-    </div>
+    {hasCities ? (
+      <>
+        <h1 class="text-3xl font-extrabold text-white mb-2">{cleanState.toUpperCase()} Cities</h1>
+        <p class="text-slate-400 text-sm mb-8">Select a city in {cleanState.toUpperCase()} to explore occupation salaries and living wages.</p>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {cities.map(city => (
+            <a 
+              href={`/directory/${cleanState}/${city}`}
+              class="bg-slate-900/60 hover:bg-slate-900 border border-slate-805 hover:border-indigo-500/50 p-4 rounded-xl text-white hover:text-indigo-300 font-semibold transition-all shadow-md"
+            >
+              {formatName(city)}
+            </a>
+          ))}
+        </div>
+      </>
+    ) : (
+      <div class="bg-slate-900/60 backdrop-blur-md rounded-2xl p-8 border border-slate-800 text-center shadow-xl space-y-6 max-w-2xl mx-auto my-12">
+        <div class="w-16 h-16 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
+          <i class="fa-solid fa-face-frown text-2xl"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-white">State Not Found</h2>
+          <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+            We currently don't have calculation records indexed for the state <strong class="text-white font-medium">{cleanState.toUpperCase()}</strong>.
+          </p>
+        </div>
+        <div class="pt-4">
+          <a href="/directory" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/30">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Return to Directory</span>
+          </a>
+        </div>
+      </div>
+    )}
   </div>
 </Layout>
